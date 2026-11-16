@@ -14,7 +14,9 @@ if not MONGODB_URI:
 # Crear conexión
 client = MongoClient(
     MONGODB_URI,
-    serverSelectionTimeoutMS=5000
+    serverSelectionTimeoutMS=5000,
+    connectTimeoutMS=5000,
+    maxPoolSize=5,
 )
 
 # Seleccionar base de datos

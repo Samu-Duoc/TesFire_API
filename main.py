@@ -20,10 +20,7 @@ app = FastAPI(title="API TestFire")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origin_regex=r"https://.*\.(vercel\.app|devtunnels\.ms)|http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -129,16 +126,11 @@ def inicio():
 def verificar_conexion():
     try:
         client.admin.command("ping")
-
-        return {
-            "success": True,
-            "database": "MongoDB conectada"
-        }
-
-    except PyMongoError:
+        return {"status": "ok"}
+    except PyMongoError as error:
         raise HTTPException(
             status_code=503,
-            detail="No se pudo conectar con MongoDB"
+            detail=str(error)
         )
 
 
@@ -258,19 +250,25 @@ def recibir_transacciones(datos: Registro):
 
     except HTTPException as error:
         if ejecucion_id:
-            ejecuciones_collection.update_one(
-                {"_id": ejecucion_id},
-                {"$set": {"estado": "fallida", "fecha_fin": datetime.now(timezone.utc), "mensaje_error": str(error.detail)}},
-            )
+            try:
+                ejecuciones_collection.update_one(
+                    {"_id": ejecucion_id},
+                    {"$set": {"estado": "fallida", "fecha_fin": datetime.now(timezone.utc), "mensaje_error": str(error.detail)}},
+                )
+            except PyMongoError:
+                pass
         registrar_log("ERROR", "error_validacion", str(error.detail), ejecucion_id_texto, datos.transacciones[0].account if datos.transacciones else None)
         raise
 
     except PyMongoError as error:
         if ejecucion_id:
-            ejecuciones_collection.update_one(
-                {"_id": ejecucion_id},
-                {"$set": {"estado": "fallida", "fecha_fin": datetime.now(timezone.utc), "mensaje_error": "Error al guardar los datos en MongoDB"}},
-            )
+            try:
+                ejecuciones_collection.update_one(
+                    {"_id": ejecucion_id},
+                    {"$set": {"estado": "fallida", "fecha_fin": datetime.now(timezone.utc), "mensaje_error": "Error al guardar los datos en MongoDB"}},
+                )
+            except PyMongoError:
+                pass
         registrar_log("ERROR", "error_mongodb", "Error al guardar los datos en MongoDB.", ejecucion_id_texto, detalles={"error": str(error)})
         raise HTTPException(
             status_code=500,
